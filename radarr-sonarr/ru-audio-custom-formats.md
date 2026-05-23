@@ -1,8 +1,8 @@
-# Ру переводчики аудио 3000
+# Ru-audio 3000
 ```
 {
-  "name": "Ру переводчики аудио 3000",
-  "includeCustomFormatWhenRenaming": true,
+  "name": "Ru-audio 3000",
+  "includeCustomFormatWhenRenaming": false,
   "specifications": [
     {
       "name": "Red Head Sound",
@@ -35,12 +35,12 @@
 }
 ```
 
-# Ру переводчики аудио 2500
+# Ru-audio 2500
 
 ```
 {
-  "name": "Ру переводчики аудио 2500",
-  "includeCustomFormatWhenRenaming": true,
+  "name": "Ru-audio 2500",
+  "includeCustomFormatWhenRenaming": false,
   "specifications": [
     {
       "name": "LostFilm",
@@ -74,12 +74,12 @@
 ```
 
 
-# Ру переводчики аудио 2000
+# Ru-audio 2000
 
 ```
 {
-  "name": "Ру переводчики аудио 2000",
-  "includeCustomFormatWhenRenaming": true,
+  "name": "Ru-audio 2000",
+  "includeCustomFormatWhenRenaming": false,
   "specifications": [
     {
       "name": "AlexFilm",
@@ -202,12 +202,12 @@
 }
 ```
 
-# Ру переводчики аудио 1000
+# Ru-audio 1000
 
 ```
 {
-  "name": "Ру переводчики аудио 1000",
-  "includeCustomFormatWhenRenaming": true,
+  "name": "Ru-audio 1000",
+  "includeCustomFormatWhenRenaming": false,
   "specifications": [
     {
       "name": "Кравец",
