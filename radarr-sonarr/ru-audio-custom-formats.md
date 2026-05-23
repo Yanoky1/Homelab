@@ -28,7 +28,7 @@
       "negate": false,
       "required": true,
       "fields": {
-        "value": "\\b(Проф.?дубляж|Проф.?перевод|Лицензия|LICENSED)\\b"
+        "value": "\\b(Проф.?дубляж|Проф.?перевод|DUB|Dub|Дубляж|дубляж|Дуб|дуб)\\b"
       }
     }
   ]
@@ -197,6 +197,15 @@
       "fields": {
         "value": "\\b(ColdFilm|Coldfilm|coldfilm)\\b"
       }
+    },
+	{
+      "name": "Кравец",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": {
+		"value": "\\b(Кравец|Kravec|kravec)\\b"
+	  }
     }
   ]
 }
@@ -210,21 +219,12 @@
   "includeCustomFormatWhenRenaming": false,
   "specifications": [
     {
-      "name": "Кравец",
+      "name": "Одноголосовой",
       "implementation": "ReleaseTitleSpecification",
       "negate": false,
       "required": true,
       "fields": {
-        "value": "\\b(Кравец|Kravec|kravec)\\b"
-      }
-    },
-    {
-      "name": "Двухголосый",
-      "implementation": "ReleaseTitleSpecification",
-      "negate": false,
-      "required": true,
-      "fields": {
-        "value": "\\b(Дубляж|дубляж|Dubbing|dubbing|2.Голос|Двухголос|Многоголос|Multi.?Voice|MVO)\\b"
+        "value": "\\b(Одноголосовая|AVO|VO)\\b"
       }
     },
     {
@@ -233,7 +233,7 @@
       "negate": false,
       "required": true,
       "fields": {
-        "value": "\\b(Многоголос|Multi.?Audio|многоголос)\\b"
+        "value": "\\b(Многоголос|Multi.?Audio|многоголос|MVO|Двухголос|Многоголос|Multi.?Voice|MVO)\\b"
       }
     }
   ]
