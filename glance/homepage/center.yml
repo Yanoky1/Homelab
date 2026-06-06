@@ -1,0 +1,587 @@
+- type: group
+  widgets:
+
+
+
+    - type: custom-api
+      title: System Monitor
+      cache: 1m
+      url: ${GLANCES_URL}/api/4/system
+      options:
+        base_url:    ${GLANCES_URL}
+        net_iface:   "enp5s0"
+        disk_mounts: "^(/root|/4TB|/Toshiba|/Hitachi)$"   # regex, несколько через |
+      template: |
+        {{ $base     := .Options.StringOr "base_url"  "http://localhost:61208" }}
+        {{ $netIface := .Options.StringOr "net_iface" "enp5s0" }}
+
+        {{ $cpu    := newRequest (printf "%s/api/4/cpu"     $base) | getResponse }}
+        {{ $mem    := newRequest (printf "%s/api/4/mem"     $base) | getResponse }}
+        {{ $swap   := newRequest (printf "%s/api/4/memswap" $base) | getResponse }}
+        {{ $load   := newRequest (printf "%s/api/4/load"    $base) | getResponse }}
+        {{ $fs     := newRequest (printf "%s/api/4/fs"      $base) | getResponse }}
+        {{ $net    := newRequest (printf "%s/api/4/network" $base) | getResponse }}
+        {{ $diskio := newRequest (printf "%s/api/4/diskio"  $base) | getResponse }}
+        {{ $uptime := newRequest (printf "%s/api/4/uptime"  $base) | getResponse }}
+
+        {{/* CPU Calculations */}}
+        {{ $cpuPct    := $cpu.JSON.Float "total" }}
+        {{ $cores     := $load.JSON.Int  "cpucore" }}
+        {{ $load1     := $load.JSON.Float "min1" }}
+        {{ $load15    := $load.JSON.Float "min15" }}
+        
+        {{ $load1pct  := 0 }}
+        {{ $load15pct := 0 }}
+        {{ if gt $cores 0 }}
+          {{ $load1pct = div (mul $load1 100) $cores }}
+          {{ $load15pct = div (mul $load15 100) $cores }}
+        {{ end }}
+
+        {{ $memPct    := $mem.JSON.Float  "percent" }}
+        {{ $memUsedGB := div ($mem.JSON.Int  "used")  1073741824 }}
+        {{ $memTotGB  := div ($mem.JSON.Int  "total") 1073741824 }}
+        
+        {{ $swapPct   := $swap.JSON.Float "percent" }}
+        {{ $swapUsedMB := div ($swap.JSON.Int "used")  1048576 }}
+        {{ $swapTotGB  := div ($swap.JSON.Int "total") 1073741824 }}
+
+        {{/* Network Calculations */}}
+        {{ $netRx := 0 }}
+        {{ $netTx := 0 }}
+        {{ range $net.JSON.Array "" }}
+          {{ if eq (.String "interface_name") $netIface }}
+            {{ $netRx = .Int "bytes_recv_rate_per_sec" }}
+            {{ $netTx = .Int "bytes_sent_rate_per_sec" }}
+          {{ end }}
+        {{ end }}
+        
+        {{ $rxKB := div $netRx 1024 }}
+        {{ $txKB := div $netTx 1024 }}
+        {{ $rxMB := div $rxKB 1024 }}
+        {{ $txMB := div $txKB 1024 }}
+
+            <style>
+          /* Вертикальные бары */
+          .v-bars-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 50px;
+            gap: 4px;
+          }
+          .v-bar-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 12%;
+            height: 100%;
+            justify-content: flex-end;
+          }
+          .v-bar-track {
+            width: 2rem;
+            height: 100%;
+            background-color: var(--color-bg-alt);
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+          }
+          .v-bar-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--color-progress-value);
+            border-radius: 0 var(--half-border-radius) var(--half-border-radius) 0;
+          }
+          .v-bar-label {
+            font-size: 9px;
+            margin-top: 4px;
+            color: var(--color-text-dim);
+            text-align: center;
+          }
+
+
+          .stat-item {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-end;
+            gap: 5px;
+          }
+          .stat-label {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-between;
+          }
+
+          .v-bar-track{
+            border: 1px solid var(--color-progress-border);
+          }
+          </style>
+        
+         {{/* Stats Row 1: CPU, RAM, NET */}}
+
+          <div class="server-stats" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: flex-start; ">
+                
+              {{/* CPU */}}
+              <div style="display:flex; align-items: flex-start; flex-direction: row;">
+                <div class="size-h5" style="writing-mode: vertical-lr; cursor:default;">CPU</div>
+                <div style="display:flex; align-items: flex-end; gap:3px; flex-direction: column;">
+                  <div class="v-bars-row">
+                    <div class="v-bar-col">
+                      <div class="v-bar-track">
+                        <div class="v-bar-fill" style="height:{{ printf "%.0f" $cpuPct }}%"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="size-h5 color-highlight" style="flex-shrink:0; text-align:center;">{{ printf "%.0f" $cpuPct }}%</div>
+                </div>
+              </div>
+
+              {{/* RAM */}}
+              <div style="display:flex; align-items: flex-start; flex-direction: row;">
+                <div class="size-h5" style="writing-mode: vertical-lr; cursor:default;">RAM</div>
+                <div style="display:flex; align-items: flex-end; gap:3px; flex-direction: column;">
+                  <div class="v-bars-row">
+                    <div class="v-bar-col">
+                      <div class="v-bar-track">
+                        <div class="v-bar-fill" style="height:{{ printf "%.0f" $memPct }}%"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="size-h5 color-highlight" style="flex-shrink:0; text-align:center;">{{ printf "%.0f" $memPct }}%</div>
+                </div>
+              </div>
+
+              {{/* NETWORK */}}
+              {{ $rxPct := div $netRx 1048576 }}{{ if gt $rxPct 100 }}{{ $rxPct = 100 }}{{ end }}
+              {{ $txPct := div $netTx 1048576 }}{{ if gt $txPct 100 }}{{ $txPct = 100 }}{{ end }}
+              <div style="display:flex; align-items: flex-start; flex-direction: row;">
+                <div class="size-h5" style="writing-mode: vertical-lr; cursor:default;">NETWORK</div>
+                <div style="display:flex; align-items:flex-end; gap:3px; flex-direction:column;">
+                <div style="display:flex; gap:4px;">
+
+                  {{/* ↓ RX */}}
+                  <div style="display:flex; flex-direction:column; align-items:center;">
+                    <div class="v-bar-track" style="width:100%; height:50px;">
+                      <div class="v-bar-fill" style="height:{{ $rxPct }}%"></div>
+                    </div>
+                    <div class="size-h5 color-highlight" style="white-space:nowrap;">
+                      ↓{{ if gt $rxMB 0 }}{{ $rxMB }}MB{{ else if gt $rxKB 0 }}{{ $rxKB }}KB{{ else }}{{ $netRx }}B{{ end }}
+                    </div>
+                  </div>
+
+                  {{/* ↑ TX */}}
+                  <div style="display:flex; flex-direction:column; align-items:center;">
+                    <div class="v-bar-track" style="width:100%; height:50px;">
+                      <div class="v-bar-fill" style="height:{{ $txPct }}%"></div>
+                    </div>
+                    <div class="size-h5 color-highlight" style="white-space:nowrap;">
+                      ↑{{ if gt $txMB 0 }}{{ $txMB }}MB{{ else if gt $txKB 0 }}{{ $txKB }}KB{{ else }}{{ $netTx }}B{{ end }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+        
+
+          {{/* ───── Диски ───── */}}
+          {{ $diskPattern := .Options.StringOr "disk_mounts" "^/rootfs$" }}
+
+          {{ range $fs.JSON.Array "" }}
+          {{ $mnt := .String "mnt_point" }}
+          {{ if findMatch $diskPattern $mnt }}
+
+          {{ $pct     := .Float "percent" }}
+          {{ $usedGB  := div (.Int "used")  1073741824 }}
+          {{ $sizeGB  := div (.Int "size")  1073741824 }}
+          {{ $devName := .String "device_name" }}
+
+          {{ $readBytes  := 0 }}
+          {{ $writeBytes := 0 }}
+          {{ range $diskio.JSON.Array "" }}
+            {{ $dname := .String "disk_name" }}
+            {{ if findMatch (printf "/dev/%s" $dname) $devName }}
+              {{ $readBytes  = .Int "read_bytes_rate_per_sec" }}
+              {{ $writeBytes = .Int "write_bytes_rate_per_sec" }}
+            {{ end }}
+          {{ end }}
+
+          {{ $readMB  := div $readBytes  1048576 }}
+          {{ $writeMB := div $writeBytes 1048576 }}
+          {{ $readKB  := div $readBytes  1024 }}
+          {{ $writeKB := div $writeBytes 1024 }}
+
+          <div data-popover-type="html" data-popover-max-width="180px" style="display:flex; align-items: flex-start; flex-direction: row;">
+
+            {{/* Название */}}
+            <div class="size-h5" style="writing-mode: vertical-lr; cursor:default;">{{ $mnt }}</div>
+
+            <div style="display:flex; align-items: flex-end; gap:3px; flex-direction: column;">
+              <div data-popover-html="">
+                <div class="size-h5 color-highlight">{{ $mnt }}</div>
+                <div class="flex margin-top-3">
+                  <div class="size-h5">Used</div>
+                  <div class="value-separator"></div>
+                  <div class="color-highlight">{{ $usedGB }} / {{ $sizeGB }} GB</div>
+                </div>
+                <div class="flex margin-top-3">
+                  <div class="size-h5">Read</div>
+                  <div class="value-separator"></div>
+                  <div class="color-highlight">{{ if gt $readMB 0 }}{{ $readMB }}MB/s{{ else if gt $readKB 0 }}{{ $readKB }}KB/s{{ else }}—{{ end }}</div>
+                </div>
+                <div class="flex margin-top-3">
+                  <div class="size-h5">Write</div>
+                  <div class="value-separator"></div>
+                  <div class="color-highlight">{{ if gt $writeMB 0 }}{{ $writeMB }}MB/s{{ else if gt $writeKB 0 }}{{ $writeKB }}KB/s{{ else }}—{{ end }}</div>
+                </div>
+              </div>
+
+  
+              <div class="v-bars-row">
+                <div class="v-bar-col">
+                  <div class="v-bar-track">
+                    <div class="v-bar-fill" style="height:{{ printf "%.0f" $pct }}%"></div>
+                  </div>
+                </div>
+              </div>
+
+
+              {{/* Процент */}}
+              <div class="size-h5 color-highlight" style="flex-shrink:0; text-align: center;">{{ printf "%.0f" $pct }}%</div>
+            </div>
+          </div>
+
+        {{ end }}
+        {{ end }}
+
+        </div>
+
+
+
+
+
+
+    - type: bookmarks
+      groups:
+
+        - title: Иконки для конфига
+          links:
+            - title: Simple | si
+              url: https://simpleicons.org/
+            - title: selfh.st | sh
+              url: https://selfh.st/icons/
+            - title: Dashboard | di
+              url: https://github.com/homarr-labs/dashboard-icons
+            - title: Material Design icons | mdi
+              url: https://pictogrammers.com/library/mdi/
+
+
+
+
+
+- type: group
+  widgets:
+
+
+    - type: custom-api
+      title: Tools
+      cache: 1h
+      template: |
+        <style>
+          .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+            gap: 7px;
+            justify-items: center;
+          }
+          .icon-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 7px;
+            text-decoration: none;
+            transition: background 0.15s;
+          }
+          .icon-link:hover { background: var(--color-bg-alt); }
+          .icon-link img {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+          }
+          .icon-link img.flat { filter: var(--color-icon-filter, invert(1)); }
+        </style>
+        <div class="icon-grid">
+          <a class="icon-link" href="http://192.168.1.1" target="_blank" title="OpenWrt">
+            <img class="flat" src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openwrt.svg">
+          </a>
+          <a class="icon-link" href="https://xui.yanoky.ru:55068/xYhmDtEIhzCtpVO1iJ/" target="_blank" title="3x-ui">
+            <img class="flat" src="https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/connection.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:81" target="_blank" title="Nginx Proxy Manager">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/nginx-proxy-manager.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.1:8080" target="_blank" title="Adguard Home">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/adguard-home.png">
+          </a>
+          <a class="icon-link" href="https://nxp.yanoky.ru" target="_blank" title="NextExplorer">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/nextexplorer.png">
+          </a>
+          <a class="icon-link" href="https://192.168.1.100:9443" target="_blank" title="Portainer">
+            <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/portainer-be-dark.png">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:4839" target="_blank" title="Openmediavault">
+            <img class="flat" src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openmediavault.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:4533" target="_blank" title="Navidrome">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/navidrome.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8097" target="_blank" title="Jellyfin">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/jellyfin.png">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8044" target="_blank" title="Ryot">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/ryot.png">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:5056" target="_blank" title="Seerr">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/seerr.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:2283" target="_blank" title="Immich">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/immich.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8181" target="_blank" title="qBittorrent">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/qbittorrent.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:6080" target="_blank" title="Soulseek">
+            <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/f9107d6b8251945a9c0b578c3f460b19a0df70d4/svg/nicotine-plus.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:61208" target="_blank" title="Glances">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/glances.png">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8039" target="_blank" title="MeTube">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/metube.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:7878" target="_blank" title="Radarr">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/radarr.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8989" target="_blank" title="Sonarr">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/sonarr.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:9696" target="_blank" title="Prowlarr">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/prowlarr.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:2343" target="_blank" title="VS Code">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/visual-studio-code.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:8183" target="_blank" title="Volleyball">
+            <img class="flat" src="https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/volleyball.svg">
+          </a>
+          <a class="icon-link" href="http://192.168.1.100:3001" target="_blank" title="Uptime Kuma">
+            <img src="https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/uptime-kuma.svg">
+          </a>
+        </div>
+
+
+    - type: custom-api
+      title: Nginx Proxy Manager
+      cache: 4h
+      url: http://${NPM_IP}:${NPM_PORT}/api/tokens
+      method: POST
+      body-type: json
+      body:
+        identity: ${NPM_LOG}
+        secret: ${NPM_PASS}
+      options:
+        collapse-after: -1
+        show-icons: true
+        domain-name: ".${NPM_DOMAIN}"
+        tooltip-enabled: true
+
+        authentik: https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/authentik.svg
+        immich: https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/immich.svg
+        jellyfin: https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyfin.svg
+        jellyseerr: https://cdn.jsdelivr.net/gh/selfhst/icons/svg/jellyseerr.svg
+        navidrome: https://cdn.jsdelivr.net/gh/selfhst/icons/svg/navidrome.svg
+        portainer: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/portainer-be-dark.png
+        volleyball: https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/volleyball.svg
+        nxp: https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/nextexplorer.png
+        yanoky.ru: https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/glance.svg
+
+        sort-by: name # Options: name, status
+        sort-order: ascending # Options: ascending, descending
+
+      template: |
+        <style>
+          .widget-type-nginx li {
+            margin-top: var(--list-half-gap); 
+            border: none !important;
+            padding-top: var(--list-half-gap);
+          }
+          li {
+          
+            border: none !important;
+
+          }
+          .widget-ngix-proxy-icon, .widget-ngix-proxy-icon-default  {
+            display: block;
+            filter: grayscale(0);
+            object-fit: contain;
+            aspect-ratio: 1 / 1;
+            width: 2.7rem;
+            opacity: 1;
+            transition: filter 0.3s, opacity 0.3s;
+          }
+          # :root[data-scheme="dark"] .widget-ngix-proxy-icon {
+          #   filter: invert(100%);
+          # } 
+        </style>
+
+        {{ $defaultIconUrl := "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/nginx-proxy-manager.svg" }}
+          
+        {{ if eq .Response.StatusCode 200 }}
+          {{ $accessToken := .JSON.String "token" }}
+          {{
+            $proxyHosts := newRequest (concat "http://${NPM_IP}:${NPM_PORT}" "/api/nginx/proxy-hosts")
+              | withHeader "Authorization" (print "Bearer " $accessToken)
+              | getResponse
+          }}
+          <ul class="dynamic-columns list list-gap-15 list-with-separator collapsible-container" data-collapse-after="{{ .Options.IntOr "collapse-after" 6 }}">
+            {{ range $proxyHosts.JSON.Array "" }}
+              {{ if and (.String "domain_names.0") (.Bool "enabled") }}
+                
+                {{ $proxy_url  := (concat (.String "forward_scheme") "://" (.String "domain_names.0") ) }}
+                {{ $host_url   := (concat (.String "forward_scheme") "://" (.String "forward_host") ":" (.String "forward_port") ) }}
+                {{ $subDomain  := .String "domain_names.0" | trimSuffix ($.Options.StringOr "domain-name" "") }}
+
+                <li class="flex items-center gap-20">
+                  {{ if $.Options.BoolOr "show-icons" true }}
+                    <div class="shrink-0">
+                        {{ $iconUrl := $.Options.StringOr $subDomain $defaultIconUrl}}
+                        {{ if eq $iconUrl $defaultIconUrl }}
+                          <img class="widget-ngix-proxy-icon-default" src="{{ $defaultIconUrl }}" loading="lazy">
+                        {{ else }}
+                          {{ if ne (findMatch "://" $iconUrl) "://" }}
+                            <img class="widget-ngix-proxy-icon" src="https://simpleicons.org/icons/{{$iconUrl}}.svg" loading="lazy">
+                          {{ else }}
+                            <img class="widget-ngix-proxy-icon" src="{{ $iconUrl }}" loading="lazy">
+                          {{ end }}
+                        {{ end }}
+                    </div>
+                  {{ end }}
+
+                  <div class="min-width-0 grow">
+                    <a href='{{ $proxy_url }}' class="color-highlight size-title-dynamic block" style="display: inline;" target="_blank" rel="noreferrer"
+                        {{if $.Options.BoolOr "tooltip-enabled" false}}data-popover-type="text" data-popover-text="{{$proxy_url}}"{{end}}
+                      >{{ $subDomain }}</a>
+                    <div class="flex items-center gap-10" style="margin-bottom: 5px">
+                      <div class="text-left">➔</div>
+                      <div class="size-h6 flex-1 text-left">
+                        <a href='{{ $host_url }}' target="_blank" rel="noreferrer">{{ $host_url }}</a>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              {{ end }}
+            {{ end }}
+          </ul>
+
+        {{ else }}
+          <p class='color-negative'>Failed to get token: {{ .JSON.String "error.message" }} ({{ $.Response.Status }}) </p>
+        {{ end }}
+
+     
+
+
+
+    - type: docker-containers
+      title: Docker
+      hide-by-default: false
+      sort-by: name # Options: name, status
+      sort-order: ascending # Options: ascending, descending
+
+
+
+- type: videos
+  style: horizontal-cards
+  collapse-after-rows: 2
+  channels:
+    - UCm7Y0VLoGIAuOH--p43-WTA #AFaGP
+    - UChT4ZJqM72E9Smb--tvYJVQ #ProHomelab
+    - UCif_LFEAFuLxW75FGInSUFA #правило 34
+    - UCUzkWdUCkVrkKCcmut9epTQ #DeadP47
+    - UC-qwaQSx8GAtUMlw3aBGSzQ #Павел Хмурчик
+    - UCWSbh4sP-Df0t_KowsJO7_g #Overtake lab
+    - UCIGSeb72lRj7Jxlwt63OmMQ #Мой Компьютер
+    - UCOKoyH_hrJen40sJfx8q1WQ #spline
+    - UCDF_NIAEkcAUvzxe1DUzaQA #Rozetked
+    - UCg0bIYJXvberMBRdO1k1Dxg #Izzy Laif
+    - UCzkRclXxk2hRgErIektYY8g #YMP Yuri
+    - UC-eLbSHfelrsQgPd0Ri6ZiA #Serodji
+    - UC_9BRyGp0-Bth9wDOB_CdWg #Vilknz
+    - UCQ18THOcZ8nIP-A3ZCqqZwA #BIG GEEK
+    - UC9N3WWEokOITNgwK_PaaX9Q #Rusty Games
+    - UCPSXljjrNazMQwzb3M6zD0w #Parkava
+    - UCXFxgPppcehs2LoiKhkakQg #SuperCrastan
+    - UCtg1DldX02mwX2BIZ_LjMtw #for now
+    - UCWITZjysft_ojAGx-DS9z_Q #Methol4ik
+    - UCJUzQzXzehSp55zGvvkCMEg #Илья Соколов
+    - UCR-Hcwi27-Ee6VnGzmxE1pA #Данила Поперечный
+    - UCwjhNxiTk2mSGTtmIixDXpQ #Киряша
+    - UCte_f4q6KbaibiXzJ7JwV-g #FISPECKT
+    - UCLWjUOUp36kb3ZRyjmj7M2w #LinkOfFreedom
+    - UCgtAOyEQdAyjvm9ATCi_Aig #AlexGyver
+    - UCvUxXI2F31mcmdbC2fb3cUw #хорзист
+    - UCko_AIMaWHuJsWCb8yr9w6Q #GodRay
+    - UCBsmKQ49v6C45bh_-6hQjuA #SEDOVSKY
+    - UCyEHIfXWmoh0qyJLxz4fOyg #ЗЕ МАККЕРС
+    - UCj-Jk5kab0aLMl3BDSTXE3Q #irwwwin
+    - UC5ccRnJB11jDRFNx-1M2GRQ #Dzhi-Dzhi
+    - UCxa8XPOhu4iA6Lon71TJ0rg #Ampersand
+    - UC89NwAHUAjNxsuFs6IGccgA #Scainet-001 Server
+    - UCi5LWMn_xMdP6pkWYpTbcPQ #Битые Огурцы
+    - UCrzyh3ALruqfWEQnTQNhOVw #DiabloSat
+    - UCL35tUS-obUnBaph__WStjw #e t e r n a l – vol.2
+    - UCihmIurtHp3z3jnktxHUXOw #ПОНИМАЕВ
+    - UCXZBrkds6XdSOfH6--Y3Fug #NaRKoMaNko
+    - UCMiyV_Ib77XLpzHPQH_q0qQ #Veronica Explains
+    - UCqrH9NRf9NyXvyV-HGG4hOQ #TeddyBill
+    - UCbca4OmI1dBZjfZdOwXILtw #Lintech
+    - UCFB_cIjGCfFmfSreaoUMoQQ #2д Храм
+    - UChlKH-mOX3SYiXfe_EYJs-w #NAGIBAND
+    - UCr2EXJtFMunvG0CmYE3Tj8A #Асафьев Стас
+    - UCRIDPCC5tswRSguYg9wL9jQ #h1ker
+    - UCkSKigph5Lz-8eA2iJJ3Ntg #Hasselhoff
+    - UCcuP-P8GCKWSrNDUHGShu4g #KOMPUKTER
+
+
+
+
+- type: group
+  widgets:
+    - type: reddit
+      show-thumbnails: true
+      collapse-after: 6
+      subreddit: unixporn
+      request-url-template: http://192.168.1.1:6432{REQUEST-URL}
+
+    - type: reddit
+      show-thumbnails: true
+      collapse-after: 6
+      subreddit: obsidianMD
+
+    - type: reddit
+      show-thumbnails: true
+      collapse-after: 6
+      subreddit: selfhosted
+      
+    - type: reddit
+      show-thumbnails: true
+      collapse-after: 6
+      subreddit: homelab
+
+    - type: reddit
+      show-thumbnails: true
+      collapse-after: 6
+      subreddit: openwrt
+      

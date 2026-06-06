@@ -1,0 +1,117 @@
+- type: custom-api
+  title: Epic Games
+  cache: 12h
+  url: https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en&country=US&allowCountries=US
+  template: |
+    <div>
+      {{ if eq .Response.StatusCode 200 }}
+        <div class="list list-gap-10 collapsible-contain" data-collapse-after="15">
+          {{ range .JSON.Array "data.Catalog.searchStore.elements" }}
+            {{ $price := .String "price.totalPrice.discountPrice" }}
+            {{ $hasPromo := gt (len (.Array "promotions.promotionalOffers")) 0 }}
+            {{ if and $hasPromo (eq $price "0") }}
+              {{ $gamePage := .String "productSlug" }}
+              {{ if gt (len (.Array "offerMappings")) 0 }}
+                {{ $gamePage = .String "offerMappings.0.pageSlug" }}
+              {{end }}
+              <a href="https://store.epicgames.com/ru-RU/p/{{ $gamePage }}" target="_blank" style="display: flex; align-items: flex-start; gap: 1rem;">
+                {{ $title := .String "title" }}
+                {{ range .Array "keyImages" }}
+                  {{ if eq (.String "type") "OfferImageWide" }}
+                    <img src="{{ .String "url" }}" alt="{{ $title }}" style="width: 120px; height: auto; object-fit: cover; border-radius: var(--border-radius);">
+                  {{ end }}
+                {{ end }}
+                <div class="card-content">
+                  <span class="size-h4 color-highlight">{{ $title }}</span><br>
+                  <span class="size-h5 color-subdue">
+                    {{ if $hasPromo }}
+                      {{ $promotions := .Array "promotions.promotionalOffers" }}
+                      {{ if gt (len $promotions) 0 }}
+                        {{ $firstPromo := index $promotions 0 }}
+                        {{ $offers := $firstPromo.Array "promotionalOffers" }}
+                        {{ if gt (len $offers) 0 }}
+                          {{ $firstOffer := index $offers 0 }}
+                          Free until {{ slice ($firstOffer.String "endDate") 0 10 }}
+                        {{ else }}
+                          Free this week!
+                        {{ end }}
+                      {{ else }}
+                        Free this week!
+                      {{ end }}
+                    {{ end }}
+                  </span>
+                </div>
+              </a>
+            {{ end }}
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="color-negative">Error fetching Epic Games data.</p>
+      {{ end }}
+    </div>
+- type: group
+  widgets:
+
+    - type: custom-api
+      title: Steam Specials
+      cache: 12h
+      url: https://store.steampowered.com/api/featuredcategories?cc=us
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+        {{ range .JSON.Array "specials.items" }}
+          <li style="display: flex; align-items: center; gap: 1rem;">
+            <img src="{{ .String "header_image" }}" alt="{{ .String "name" }}"
+                    style="width: 120px; height: auto; border-radius: 4px; flex-shrink: 0;">
+            <div style="min-width: 0;">
+              <a class="size-h4 color-highlight block text-truncate" href="https://store.steampowered.com/app/{{ .Int "id" }}/">{{ .String "name" }}</a>
+              <ul class="list-horizontal-text">
+                <li>{{ div (.Int "final_price" | toFloat) 100 | printf "$%.2f" }}</li>
+                {{ $discount := .Int "discount_percent" }}
+                <li{{ if ge $discount 40 }} class="color-positive"{{ end }}>{{ $discount }}% off</li>
+              </ul>
+          </li>
+        {{ end }}
+        </ul>
+
+
+    - type: custom-api
+      title: Top Sellers
+      cache: 12h
+      url: https://store.steampowered.com/api/featuredcategories?cc=us
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+        {{ range .JSON.Array "top_sellers.items" }}
+          <li style="display: flex; align-items: center; gap: 1rem;">
+            <img src="{{ .String "header_image" }}" alt="{{ .String "name" }}"
+                    style="width: 120px; height: auto; border-radius: 4px; flex-shrink: 0;">
+            <div style="min-width: 0;">
+              <a class="size-h4 color-highlight block text-truncate" href="https://store.steampowered.com/app/{{ .Int "id" }}/">{{ .String "name" }}</a>
+              <ul class="list-horizontal-text">
+                <li>{{ div (.Int "final_price" | toFloat) 100 | printf "$%.2f" }}</li>
+                {{ $discount := .Int "discount_percent" }}
+                <li{{ if ge $discount 40 }} class="color-positive"{{ end }}>{{ $discount }}% off</li>
+              </ul>
+          </li>
+        {{ end }}
+        </ul>
+
+    - type: custom-api
+      title: New Releases
+      cache: 12h
+      url: https://store.steampowered.com/api/featuredcategories?cc=us
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+        {{ range .JSON.Array "new_releases.items" }}
+          <li style="display: flex; align-items: center; gap: 1rem;">
+            <img src="{{ .String "header_image" }}" alt="{{ .String "name" }}"
+                    style="width: 120px; height: auto; border-radius: 4px; flex-shrink: 0;">
+            <div style="min-width: 0;">
+              <a class="size-h4 color-highlight block text-truncate" href="https://store.steampowered.com/app/{{ .Int "id" }}/">{{ .String "name" }}</a>
+              <ul class="list-horizontal-text">
+                <li>{{ div (.Int "final_price" | toFloat) 100 | printf "$%.2f" }}</li>
+                {{ $discount := .Int "discount_percent" }}
+                <li{{ if ge $discount 40 }} class="color-positive"{{ end }}>{{ $discount }}% off</li>
+              </ul>
+          </li>
+        {{ end }}
+        </ul>
